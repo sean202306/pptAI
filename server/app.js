@@ -14,10 +14,38 @@ const openai = new OpenAI({
   apiKey: 'sk-4b5b1f4204184f00b184e60ba2c4b701'
 });
 
+// 获取可用模板列表的API - 移到了路由处理函数外部
+app.get('/api/templates', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const templatesDir = path.join(__dirname, 'templates');
+    
+    // 确保模板目录存在
+    if (!fs.existsSync(templatesDir)) {
+      fs.mkdirSync(templatesDir, { recursive: true });
+    }
+    
+    // 读取模板目录中的所有.pptx文件
+    const templateFiles = fs.readdirSync(templatesDir)
+      .filter(file => file.endsWith('.pptx'))
+      .map(file => ({
+        id: file.replace('.pptx', ''),
+        name: file.replace('.pptx', '').replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
+      }));
+    
+    res.json(templateFiles);
+  } catch (error) {
+    console.error('Error getting templates:', error);
+    res.status(500).send('获取模板列表失败');
+  }
+});
+
 app.post('/api/generate-ppt', async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, templateName } = req.body;
     console.log('Received content:', content);
+    console.log('Template selected:', templateName || 'default');
 
     if (!content) {
       throw new Error('No content provided');
@@ -82,10 +110,31 @@ app.post('/api/generate-ppt', async (req, res) => {
         ]
       };
     }
-    
-    // 创建PPT
-    console.log('Creating PPT...');
-    const pres = new pptxgen();
+    // 根据模板名称加载不同的模板
+    if (templateName) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const templatesDir = path.join(__dirname, 'templates');
+        const templatePath = path.join(templatesDir, `${templateName}.pptx`);
+        
+        // 检查模板是否存在
+        if (fs.existsSync(templatePath)) {
+          console.log(`Loading template: ${templatePath}`);
+          pres = new pptxgen();
+          await pres.load(fs.readFileSync(templatePath));
+          console.log('Template loaded successfully');
+        } else {
+          console.log(`Template not found: ${templatePath}, using default`);
+          pres = new pptxgen();
+        }
+      } catch (templateError) {
+        console.error('Error loading template:', templateError);
+        pres = new pptxgen();
+      }
+    } else {
+      pres = new pptxgen();
+    }
     
     // 添加封面幻灯片
     const coverSlide = pres.addSlide();

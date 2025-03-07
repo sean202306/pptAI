@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
-import { Layout, Input, Button, message } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Input, Button, message, Select } from 'antd';
 import axios from 'axios';
 import './App.css';
 
 const { Header, Content } = Layout;
 const { TextArea } = Input;
+const { Option } = Select;
 
 function App() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+
+  // 获取可用模板列表
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const response = await axios.get('http://localhost:3002/api/templates');
+        setTemplates(response.data);
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+        // 设置一些默认模板
+        setTemplates([
+          { id: 'template1', name: '商务简约' },
+          { id: 'template2', name: '创意设计' },
+          { id: 'template3', name: '学术报告' }
+        ]);
+      }
+    };
+
+    fetchTemplates();
+  }, []);
 
   const handleSubmit = async () => {
     if (!content.trim()) {
@@ -20,7 +43,8 @@ function App() {
     try {
       message.info('正在生成PPT，请稍候...');
       const response = await axios.post('http://localhost:3002/api/generate-ppt', {
-        content: content
+        content: content,
+        templateName: selectedTemplate
       }, {
         responseType: 'blob'
       });
@@ -60,6 +84,21 @@ function App() {
             placeholder="请输入您想要生成PPT的内容..."
             style={{ marginBottom: '20px' }}
           />
+          
+          <Select
+            style={{ width: '100%', marginBottom: '20px' }}
+            placeholder="选择PPT模板"
+            onChange={value => setSelectedTemplate(value)}
+            value={selectedTemplate}
+          >
+            <Option value="">默认模板</Option>
+            {templates.map(template => (
+              <Option key={template.id} value={template.id}>
+                {template.name}
+              </Option>
+            ))}
+          </Select>
+          
           <Button 
             type="primary" 
             onClick={handleSubmit} 
